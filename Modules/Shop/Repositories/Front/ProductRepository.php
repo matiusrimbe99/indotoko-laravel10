@@ -2,6 +2,7 @@
 
 namespace Modules\Shop\Repositories\Front;
 
+use Modules\Shop\App\Models\Category;
 use Modules\Shop\App\Models\Product;
 use Modules\Shop\Repositories\Front\Interfaces\ProductRepositoryInterface;
 
@@ -10,12 +11,24 @@ class ProductRepository implements ProductRepositoryInterface
     public function findAll($options = [])
     {
         $perPage = $options['per_page'] ?? null;
-        $product = Product::with(['categories', 'tags']);
+        $categorySlug = $options['filter']['category'] ?? null;
+        $products = Product::with(['categories', 'tags']);
 
-        if ($perPage) {
-            return $product->paginate($perPage);
+        if ($categorySlug) {
+            $category = Category::where('slug', $categorySlug)->firstOrFail();
+            $childCategoryIDs = Category::childIDs($category->id);
+            $categoryIDs = array_merge([$category->id], $childCategoryIDs);
+
+            $products = $products->whereHas('categories', function ($query) use ($categoryIDs) {
+                $query->whereIn('shop_categories.id', $categoryIDs);
+            });
         }
 
-        return $product->get();
+
+        if ($perPage) {
+            return $products->paginate($perPage);
+        }
+
+        return $products->get();
     }
 }
